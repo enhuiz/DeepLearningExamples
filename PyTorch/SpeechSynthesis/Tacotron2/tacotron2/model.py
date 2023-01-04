@@ -617,7 +617,7 @@ class Tacotron2(nn.Module):
                                encoder_embedding_dim,
                                encoder_kernel_size)
         self.decoder = Decoder(n_mel_channels, n_frames_per_step,
-                               encoder_embedding_dim, attention_dim,
+                               encoder_embedding_dim + 128, attention_dim,
                                attention_location_n_filters,
                                attention_location_kernel_size,
                                attention_rnn_dim, decoder_rnn_dim,
@@ -664,8 +664,22 @@ class Tacotron2(nn.Module):
 
         encoder_outputs = self.encoder(embedded_inputs, input_lengths)
 
+        # batch size x dim
+        dim1, dim2, _ = encoder_outputs.shape
+        speaker_embedding = torch.randn(1, 128).cuda()
+        # speaker_embedding = torch.randn(len(encoder_outputs), 1, 128, device=embedded_inputs.device)
+        # speaker_embedding = speaker_embedding.repeat_interleave(encoder_outputs.shape[1], dim=1)
+        speaker_embedding = speaker_embedding.expand(dim1, dim2, 128)
+        print(speaker_embedding.shape)
+
+        # speaker_embedding BxTxD
+        print(speaker_embedding.shape)
+
+        encoder_outputs_cat = torch.cat([encoder_outputs, speaker_embedding], -1)
+        print(encoder_outputs_cat.shape) # BxTxD
+
         mel_outputs, gate_outputs, alignments = self.decoder(
-            encoder_outputs, targets, memory_lengths=input_lengths)
+            encoder_outputs_cat, targets, memory_lengths=input_lengths)
 
         mel_outputs_postnet = self.postnet(mel_outputs)
         mel_outputs_postnet = mel_outputs + mel_outputs_postnet
